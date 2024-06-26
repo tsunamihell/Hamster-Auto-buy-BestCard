@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Colors
+# تعریف رنگ‌ها برای خروجی
 red='\033[0;31m'
 green='\033[0;32m'
 yellow='\033[0;33m'
@@ -9,26 +9,26 @@ cyan='\033[0;36m'
 blue='\033[0;34m'
 rest='\033[0m'
 
-# If running in Termux, update and upgrade
+# اگر در Termux اجرا می‌شود، بروزرسانی و ارتقاء بسته‌ها
 if [ -d "$HOME/.termux" ] && [ -z "$(command -v jq)" ]; then
-    echo "Running update & upgrade ..."
+    echo "در حال بروزرسانی و ارتقاء..."
     pkg update -y
     pkg upgrade -y
 fi
 
-# Function to install necessary packages
+# تابع برای نصب بسته‌های مورد نیاز
 install_packages() {
     local packages=(curl jq bc)
     local missing_packages=()
 
-    # Check for missing packages
+    # بررسی بسته‌های مفقود
     for pkg in "${packages[@]}"; do
         if ! command -v "$pkg" &> /dev/null; then
             missing_packages+=("$pkg")
         fi
     done
 
-    # If any package is missing, install missing packages
+    # نصب بسته‌های مفقود
     if [ ${#missing_packages[@]} -gt 0 ]; then
         if [ -n "$(command -v pkg)" ]; then
             pkg install "${missing_packages[@]}" -y
@@ -42,33 +42,33 @@ install_packages() {
             sudo dnf update -y
             sudo dnf install "${missing_packages[@]}" -y
         else
-            echo -e "${yellow}Unsupported package manager. Please install required packages manually.${rest}"
+            echo -e "${yellow}مدیریت بسته‌های پشتیبانی نشده. لطفاً بسته‌های مورد نیاز را به صورت دستی نصب کنید.${rest}"
         fi
     fi
 }
 
-# Install the necessary packages
+# نصب بسته‌های مورد نیاز
 install_packages
 
-# Clear the screen
+# پاک کردن صفحه
 clear
 
-# Prompt for Authorization
-echo -e "${purple}=======${yellow}Hamster Combat Auto Buy best cards${purple}=======${rest}"
+# درخواست برای مجوز
+echo -e "${purple}=======${yellow} خرید خودکار بهترین کارت‌های Hamster Combat ${purple}=======${rest}"
 echo ""
-echo -en "${green}Enter Authorization [${cyan}Example: ${yellow}Bearer 171852....${green}]: ${rest}"
+echo -en "${green}ورود مجوز [${cyan}مثال: ${yellow}Bearer 171852....${green}]: ${rest}"
 read -r Authorization
 echo -e "${purple}============================${rest}"
 
-# Prompt for minimum balance threshold
-echo -en "${green}Enter minimum balance threshold (${yellow}the script will stop purchasing if the balance is below this amount${green}):${rest} "
+# درخواست برای حداقل موجودی
+echo -en "${green}ورود حداقل میزان موجودی (${yellow}اسکریپت در صورت پایین بودن موجودی از این مقدار، خرید را متوقف می‌کند${green}):${rest} "
 read -r min_balance_threshold
 
-# Function to purchase upgrade
+# تابع برای خرید ارتقاء
 purchase_upgrade() {
-    upgrade_id="$1"
-    timestamp=$(date +%s%3N)
-    response=$(curl -s -X POST \
+    local upgrade_id="$1"
+    local timestamp=$(date +%s%3N)
+    local response=$(curl -s -X POST \
       -H "Content-Type: application/json" \
       -H "Authorization: $Authorization" \
       -H "Origin: https://hamsterkombat.io" \
@@ -78,7 +78,7 @@ purchase_upgrade() {
     echo "$response"
 }
 
-# Function to get the best upgrade item
+# تابع برای دریافت بهترین آیتم ارتقاء
 get_best_item() {
     curl -s -X POST -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
         -H "Accept: */*" \
@@ -91,67 +91,80 @@ get_best_item() {
         -H "Sec-Fetch-Mode: cors" \
         -H "Sec-Fetch-Site: same-site" \
         -H "Priority: u=4" \
-        https://api.hamsterkombat.io/clicker/upgrades-for-buy | jq -r '.upgradesForBuy | map(select(.isExpired == false and .isAvailable)) | map(select(.profitPerHourDelta != 0 and .price != 0)) | sort_by(-(.profitPerHourDelta / .price))[:1] | .[0] | {id: .id, section: .section, price: .price, profitPerHourDelta: .profitPerHourDelta, cooldownSeconds: .cooldownSeconds}'
+        https://api.hamsterkombat.io/clicker/upgrades-for-buy | jq -r \
+        '.upgradesForBuy | map(select(.isExpired == false and .isAvailable)) | 
+        map(select(.profitPerHourDelta != 0 and .price != 0)) | 
+        sort_by(-(.profitPerHourDelta / .price))[:1] | .[0] | 
+        {id: .id, section: .section, price: .price, profitPerHourDelta: .profitPerHourDelta, cooldownSeconds: .cooldownSeconds}'
 }
 
-# Function to wait for cooldown period
+# تابع برای انتظار دوره سرد شدن
 wait_for_cooldown() {
-    cooldown_seconds="$1"
-    echo -e "${yellow}Upgrade is on cooldown. Waiting for cooldown period of ${cyan}$cooldown_seconds${yellow} seconds...${rest}"
+    local cooldown_seconds="$1"
+    echo -e "${yellow}ارتقاء در دوره سرد شدن است. انتظار برای دوره سرد شدن به مدت ${cyan}$cooldown_seconds${yellow} ثانیه...${rest}"
     sleep "$cooldown_seconds"
 }
 
-# Main script logic
+# منطق اصلی اسکریپت
 main() {
     while true; do
-        # Get the best item to buy
+        # دریافت بهترین آیتم برای خرید
+        local best_item
         best_item=$(get_best_item)
+        local best_item_id
         best_item_id=$(echo "$best_item" | jq -r '.id')
+        local section
         section=$(echo "$best_item" | jq -r '.section')
+        local price
         price=$(echo "$best_item" | jq -r '.price')
+        local profit
         profit=$(echo "$best_item" | jq -r '.profitPerHourDelta')
+        local cooldown
         cooldown=$(echo "$best_item" | jq -r '.cooldownSeconds')
 
         echo -e "${purple}============================${rest}"
-        echo -e "${green}Best item to buy:${yellow} $best_item_id ${green}in section:${yellow} $section${rest}"
-        echo -e "${blue}Price: ${cyan}$price${rest}"
-        echo -e "${blue}Profit per Hour: ${cyan}$profit${rest}"
+        echo -e "${green}بهترین آیتم برای خرید:${yellow} $best_item_id ${green}در بخش:${yellow} $section${rest}"
+        echo -e "${blue}قیمت: ${cyan}$price${rest}"
+        echo -e "${blue}سود در ساعت: ${cyan}$profit${rest}"
         echo ""
 
-        # Get current balanceCoins
+        # دریافت موجودی فعلی
+        local current_balance
         current_balance=$(curl -s -X POST \
             -H "Authorization: $Authorization" \
             -H "Origin: https://hamsterkombat.io" \
             -H "Referer: https://hamsterkombat.io/" \
             https://api.hamsterkombat.io/clicker/sync | jq -r '.clickerUser.balanceCoins')
 
-        # Check if current balance is above the threshold after purchase
+        # بررسی اگر موجودی فعلی بعد از خرید بالاتر از آستانه است
         if (( $(echo "$current_balance - $price > $min_balance_threshold" | bc -l) )); then
-            # Attempt to purchase the best upgrade item
+            # تلاش برای خرید بهترین آیتم ارتقاء
             if [ -n "$best_item_id" ]; then
-                echo -e "${green}Attempting to purchase upgrade '${yellow}$best_item_id${green}'...${rest}"
+                echo -e "${green}تلاش برای خرید ارتقاء '${yellow}$best_item_id${green}'...${rest}"
                 echo ""
 
+                local purchase_status
                 purchase_status=$(purchase_upgrade "$best_item_id")
 
                 if echo "$purchase_status" | grep -q "error_code"; then
                     wait_for_cooldown "$cooldown"
                 else
-                    echo -e "${green}Upgrade ${yellow}'$best_item_id'${green} purchased successfully.${rest}"
+                    echo -e "${green}ارتقاء ${yellow}'$best_item_id'${green} با موفقیت خریداری شد.${rest}"
+                    local sleep_duration
                     sleep_duration=$((RANDOM % 8 + 5))
-                    echo -e "${green}Waiting for ${yellow}$sleep_duration${green} seconds before next purchase...${rest}"
+                    echo -e "${green}انتظار برای ${yellow}$sleep_duration${green} ثانیه قبل از خرید بعدی...${rest}"
                     sleep "$sleep_duration"
                 fi
             else
-                echo -e "${red}No valid item found to buy.${rest}"
+                echo -e "${red}آیتم معتبری برای خرید یافت نشد.${rest}"
                 break
             fi
         else
-            echo -e "${red}Current balance ${cyan}(${current_balance}) ${red}minus price of item ${cyan}(${price}) ${red}is below the threshold ${cyan}(${min_balance_threshold})${red}. Stopping purchases.${rest}"
+            echo -e "${red}موجودی فعلی ${cyan}(${current_balance}) ${red}کمتر از قیمت آیتم ${cyan}(${price}) ${red}و آستانه ${cyan}(${min_balance_threshold})${red} است. خریدها متوقف می‌شوند.${rest}"
             break
         fi
     done
 }
 
-# Execute the main function
+# اجرای تابع اصلی
 main

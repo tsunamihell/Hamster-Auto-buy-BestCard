@@ -7,7 +7,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Ptechgithub/Hamster-Auto-buy
 
 ### Auto Clicker
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/Ptechgithub/Hamster-Auto-buy-BestCard/main/clicker.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/tsunamihell/Hamster-Auto-buy-BestCard/main/install.sh)
 ```
 ![29](https://raw.githubusercontent.com/Ptechgithub/configs/main/media/29.jpg)
 ---

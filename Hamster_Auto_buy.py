@@ -18,12 +18,13 @@ def wait_for_cooldown(cooldown_seconds):
     time.sleep(cooldown_seconds)
 
 # Function to wait for balance to increase
-def wait_for_balance(min_balance_threshold):
+def wait_for_balance(min_balance_threshold, headers, url):
     print(f"{Colors.YELLOW}موجودی کمتر از حداقل موجودی است. انتظار برای افزایش موجودی...{Colors.RESET}")
     while True:
         response = post(url, headers=headers)
         current_balance = float(response.json()['clickerUser']['balanceCoins'])
-        if current_balance > min_balance_threshold:
+        print(f"{Colors.GREEN}موجودی فعلی: {Colors.CYAN}{current_balance}{Colors.RESET}")
+        if current_balance >= min_balance_threshold:
             return current_balance
         time.sleep(60)  # Check balance every 60 seconds
 
@@ -92,8 +93,9 @@ print(f"{Colors.GREEN}بهترین آیتم برای خرید: {Colors.YELLOW}{b
 print(f"{Colors.BLUE}قیمت: {Colors.CYAN}{best_upgrade_price}{Colors.RESET}")
 print(f"{Colors.BLUE}سود در ساعت: {Colors.CYAN}{best_upgrade_profit}{Colors.RESET}")
 
-if current_balance - best_upgrade_price <= min_balance_threshold:
-    current_balance = wait_for_balance(min_balance_threshold)
+while current_balance - best_upgrade_price <= min_balance_threshold:
+    print(f"{Colors.RED}موجودی فعلی ({current_balance}) منهای قیمت آیتم ({best_upgrade_price}) کمتر از آستانه ({min_balance_threshold}) است. انتظار برای افزایش موجودی...{Colors.RESET}")
+    current_balance = wait_for_balance(min_balance_threshold, headers, url)
 
 print(f"{Colors.GREEN}تلاش برای خرید ارتقاء '{Colors.YELLOW}{best_upgrade_id}{Colors.GREEN}'...{Colors.RESET}")
 purchase_status = purchase_upgrade(authorization, best_upgrade_id)

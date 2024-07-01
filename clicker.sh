@@ -65,8 +65,25 @@ echo -en "${green}Enter Coin Capacity [${yellow}default:5000${green}]:${rest} "
 read -r capacity
 capacity=${capacity:-5000}
 
+# Function to perform boost and full energy
+perform_boost() {
+    echo -e "${green}Performing boost and full energy...${rest}"
+    curl -s -X POST https://api.hamsterkombat.io/clicker/full-energy \
+        -H "Content-Type: application/json" \
+        -H "Authorization: $Authorization" \
+        -d '{}' > /dev/null
+    echo -e "${green}Boost and full energy performed.${rest}"
+}
+
+last_boost_time=$(date +%s)
 
 while true; do
+    current_time=$(date +%s)
+    if (( current_time - last_boost_time >= 3600 )); then
+        perform_boost
+        last_boost_time=$current_time
+    fi
+
     Taps=$(curl -s -X POST \
         https://api.hamsterkombat.io/clicker/sync \
         -H "Content-Type: application/json" \

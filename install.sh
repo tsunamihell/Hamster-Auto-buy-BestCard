@@ -1,105 +1,178 @@
-import random
-import time
-from requests import post
+#!/bin/bash
 
-# Colors for terminal output
-class Colors:
-    RED = '\033[0;31m'
-    GREEN = '\033[0;32m'
-    YELLOW = '\033[0;33m'
-    PURPLE = '\033[0;35m'
-    CYAN = '\033[0;36m'
-    BLUE = '\033[0;34m'
-    RESET = '\033[0m'
+# Colors
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[0;33m'
+purple='\033[0;35m'
+cyan='\033[0;36m'
+blue='\033[0;34m'
+rest='\033[0m'
 
-# Function to wait for cooldown period
-def wait_for_cooldown(cooldown_seconds):
-    print(f"{Colors.YELLOW}ارتقاء در حالت انتظار است. انتظار برای {Colors.CYAN}{cooldown_seconds}{Colors.YELLOW} ثانیه...{Colors.RESET}")
-    time.sleep(cooldown_seconds)
+# If running in Termux, update and upgrade
+if [ -d "$HOME/.termux" ] && [ -z "$(command -v jq)" ]; then
+    echo "Running update & upgrade ..."
+    pkg update -y
+    pkg upgrade -y
+fi
 
-# Function to wait for balance to increase
-def wait_for_balance(min_balance_threshold):
-    print(f"{Colors.YELLOW}موجودی کمتر از حداقل موجودی است. انتظار برای افزایش موجودی...{Colors.RESET}")
-    while True:
-        response = post(url, headers=headers)
-        current_balance = float(response.json()['clickerUser']['balanceCoins'])
-        if current_balance > min_balance_threshold:
-            return current_balance
-        time.sleep(60)  # Check balance every 60 seconds
+# Function to install necessary packages
+install_packages() {
+    local packages=(curl jq bc)
+    local missing_packages=()
 
-authorization = input(f"{Colors.GREEN}لطفا مجوز را وارد کنید [{Colors.CYAN}مثال: {Colors.YELLOW}Bearer 171852....{Colors.GREEN}]: {Colors.RESET}")
-print(f"{Colors.PURPLE}============================{Colors.RESET}")
+    # Check for missing packages
+    for pkg in "${packages[@]}"; do
+        if ! command -v "$pkg" &> /dev/null; then
+            missing_packages+=("$pkg")
+        fi
+    done
 
-# Prompt for minimum balance threshold
-min_balance_threshold = float(input(f"{Colors.GREEN}لطفا حداقل موجودی را وارد کنید ({Colors.YELLOW}اسکریپت در صورت کمتر بودن موجودی از این مقدار خریدها را متوقف می‌کند{Colors.GREEN}):{Colors.RESET} "))
-
-print(f"{Colors.PURPLE}============================{Colors.RESET}")
-
-# Function to purchase upgrade
-def purchase_upgrade(authorization, upgrade_id):
-    timestamp = int(time.time() * 1000)
-    url = "https://api.hamsterkombat.io/clicker/buy-upgrade"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": authorization,
-        "Origin": "https://hamsterkombat.io",
-        "Referer": "https://hamsterkombat.io/"
-    }
-    data = {
-        "upgradeId": upgrade_id,
-        "timestamp": timestamp
-    }
-    response = post(url, headers=headers, json=data)
-    return response.json()
-
-# Headers for requests
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0',
-    'Accept': '*/*',
-    'Accept-Language': 'en-US,en;q=0.5',
-    'Referer': 'https://hamsterkombat.io/',
-    'Authorization': authorization,
-    'Origin': 'https://hamsterkombat.io',
-    'Connection': 'keep-alive',
-    'Sec-Fetch-Dest': 'empty',
-    'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Site': 'same-site',
-    'Priority': 'u=4',
+    # If any package is missing, install missing packages
+    if [ ${#missing_packages[@]} -gt 0 ]; then
+        if [ -n "$(command -v pkg)" ]; then
+            pkg install "${missing_packages[@]}" -y
+        elif [ -n "$(command -v apt)" ]; then
+            sudo apt update -y
+            sudo apt install "${missing_packages[@]}" -y
+        elif [ -n "$(command -v yum)" ]; then
+            sudo yum update -y
+            sudo yum install "${missing_packages[@]}" -y
+        elif [ -n "$(command -v dnf)" ]; then
+            sudo dnf update -y
+            sudo dnf install "${missing_packages[@]}" -y
+        else
+            echo -e "${yellow}Unsupported package manager. Please install required packages manually.${rest}"
+        fi
+    fi
 }
 
-# Get available upgrades
-response = post('https://api.hamsterkombat.io/clicker/upgrades-for-buy', headers=headers).json()
+# Install the necessary packages
+install_packages
 
-upgrades = [
-    item for item in response["upgradesForBuy"]
-    if not item["isExpired"] and item["isAvailable"] and item["price"] > 0
-]
+# Clear the screen
+clear
 
-# Get current balance
-url = "https://api.hamsterkombat.io/clicker/sync"
-response = post(url, headers=headers)
-current_balance = float(response.json()['clickerUser']['balanceCoins'])
+# Prompt for Authorization
+echo -e "${purple}=======${yellow}Hamster Combat Auto Buy best cards${purple}=======${rest}"
+echo ""
+echo -en "${green}Enter Authorization [${cyan}Example: ${yellow}Bearer 171852....${green}]: ${rest}"
+read -r Authorization
+echo -e "${purple}============================${rest}"
 
-# Selecting the best upgrade based on profit and price
-best_upgrade = max(upgrades, key=lambda x: x["profitPerHourDelta"] / x["price"])
-best_upgrade_id = best_upgrade['id']
-best_upgrade_section = best_upgrade['section']
-best_upgrade_price = best_upgrade['price']
-best_upgrade_profit = best_upgrade['profitPerHourDelta']
+# Prompt for minimum balance threshold
+echo -en "${green}Enter minimum balance threshold (${yellow}the script will stop purchasing if the balance is below this amount${green}):${rest} "
+read -r min_balance_threshold
 
-print(f"{Colors.PURPLE}============================{Colors.RESET}")
-print(f"{Colors.GREEN}بهترین آیتم برای خرید: {Colors.YELLOW}{best_upgrade_id}{Colors.GREEN} در بخش: {Colors.YELLOW}{best_upgrade_section}{Colors.RESET}")
-print(f"{Colors.BLUE}قیمت: {Colors.CYAN}{best_upgrade_price}{Colors.RESET}")
-print(f"{Colors.BLUE}سود در ساعت: {Colors.CYAN}{best_upgrade_profit}{Colors.RESET}")
+# Variables to keep track of total spent and total profit
+total_spent=0
+total_profit=0
 
-if current_balance - best_upgrade_price <= min_balance_threshold:
-    current_balance = wait_for_balance(min_balance_threshold)
+# Function to purchase upgrade
+purchase_upgrade() {
+    upgrade_id="$1"
+    timestamp=$(date +%s%3N)
+    response=$(curl -s -X POST \
+      -H "Content-Type: application/json" \
+      -H "Authorization: $Authorization" \
+      -H "Origin: https://hamsterkombat.io" \
+      -H "Referer: https://hamsterkombat.io/" \
+      -d "{\"upgradeId\": \"$upgrade_id\", \"timestamp\": $timestamp}" \
+      https://api.hamsterkombat.io/clicker/buy-upgrade)
+    echo "$response"
+}
 
-print(f"{Colors.GREEN}تلاش برای خرید ارتقاء '{Colors.YELLOW}{best_upgrade_id}{Colors.GREEN}'...{Colors.RESET}")
-purchase_status = purchase_upgrade(authorization, best_upgrade_id)
+# Function to get the best upgrade item
+get_best_item() {
+    curl -s -X POST -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
+        -H "Accept: */*" \
+        -H "Accept-Language: en-US,en;q=0.5" \
+        -H "Referer: https://hamsterkombat.io/" \
+        -H "Authorization: $Authorization" \
+        -H "Origin: https://hamsterkombat.io" \
+        -H "Connection: keep-alive" \
+        -H "Sec-Fetch-Dest: empty" \
+        -H "Sec-Fetch-Mode: cors" \
+        -H "Sec-Fetch-Site: same-site" \
+        -H "Priority: u=4" \
+        https://api.hamsterkombat.io/clicker/upgrades-for-buy | jq -r '.upgradesForBuy | map(select(.isExpired == false and .isAvailable)) | map(select(.profitPerHourDelta != 0 and .price != 0)) | sort_by(-(.profitPerHourDelta / .price))[:1] | .[0] | {id: .id, section: .section, price: .price, profitPerHourDelta: .profitPerHourDelta, cooldownSeconds: .cooldownSeconds}'
+}
 
-if 'error_code' in purchase_status:
-    cooldown_seconds = best_upgrade.get('cooldownSeconds', 0)
-    wait_for_cooldown(cooldown_seconds)
-else:
-    print(f"{Colors.GREEN}ارتقاء '{Colors.YELLOW}{best_upgrade_id}{Colors.GREEN}' با موفقیت خریداری شد.{Colors.RESET}")
+# Function to wait for cooldown period with countdown
+wait_for_cooldown() {
+    cooldown_seconds="$1"
+    echo -e "${yellow}Upgrade is on cooldown. Waiting for cooldown period of ${cyan}$cooldown_seconds${yellow} seconds...${rest}"
+    while [ $cooldown_seconds -gt 0 ]; do
+        echo -ne "${cyan}$cooldown_seconds\033[0K\r"
+        sleep 1
+        ((cooldown_seconds--))
+    done
+}
+
+# Main script logic
+main() {
+    while true; do
+        # Get the best item to buy
+        best_item=$(get_best_item)
+        best_item_id=$(echo "$best_item" | jq -r '.id')
+        section=$(echo "$best_item" | jq -r '.section')
+        price=$(echo "$best_item" | jq -r '.price')
+        profit=$(echo "$best_item" | jq -r '.profitPerHourDelta')
+        cooldown=$(echo "$best_item" | jq -r '.cooldownSeconds')
+
+        echo -e "${purple}============================${rest}"
+        echo -e "${green}Best item to buy:${yellow} $best_item_id ${green}in section:${yellow} $section${rest}"
+        echo -e "${blue}Price: ${cyan}$price${rest}"
+        echo -e "${blue}Profit per Hour: ${cyan}$profit${rest}"
+        echo ""
+
+        # Get current balanceCoins
+        current_balance=$(curl -s -X POST \
+            -H "Authorization: $Authorization" \
+            -H "Origin: https://hamsterkombat.io" \
+            -H "Referer: https://hamsterkombat.io/" \
+            https://api.hamsterkombat.io/clicker/sync | jq -r '.clickerUser.balanceCoins')
+
+        # Check if current balance is above the threshold after purchase
+        if (( $(echo "$current_balance - $price > $min_balance_threshold" | bc -l) )); then
+            # Attempt to purchase the best upgrade item
+            if [ -n "$best_item_id" ]; then
+                echo -e "${green}Attempting to purchase upgrade '${yellow}$best_item_id${green}'...${rest}"
+                echo ""
+
+                purchase_status=$(purchase_upgrade "$best_item_id")
+
+                if echo "$purchase_status" | grep -q "error_code"; then
+                    wait_for_cooldown "$cooldown"
+                else
+                    purchase_time=$(date +"%Y-%m-%d %H:%M:%S")
+                    total_spent=$(echo "$total_spent + $price" | bc)
+                    total_profit=$(echo "$total_profit + $profit" | bc)
+                    current_balance=$(echo "$current_balance - $price" | bc)
+
+                    echo -e "${green}Upgrade ${yellow}'$best_item_id'${green} purchased successfully at ${cyan}$purchase_time${green}.${rest}"
+                    echo -e "${green}Total spent so far: ${cyan}$total_spent${green} coins.${rest}"
+                    echo -e "${green}Total profit added: ${cyan}$total_profit${green} coins per hour.${rest}"
+                    echo -e "${green}Current balance: ${cyan}$current_balance${green} coins.${rest}"
+                    
+                    sleep_duration=$((RANDOM % 8 + 5))
+                    echo -e "${green}Waiting for ${yellow}$sleep_duration${green} seconds before next purchase...${rest}"
+                    while [ $sleep_duration -gt 0 ]; do
+                        echo -ne "${cyan}$sleep_duration\033[0K\r"
+                        sleep 1
+                        ((sleep_duration--))
+                    done
+                fi
+            else
+                echo -e "${red}No valid item found to buy.${rest}"
+                break
+            fi
+        else
+            echo -e "${red}Current balance ${cyan}(${current_balance}) ${red}minus price of item ${cyan}(${price}) ${red}is below the threshold ${cyan}(${min_balance_threshold})${red}. Stopping purchases.${rest}"
+            break
+        fi
+    done
+}
+
+# Execute the main function
+main

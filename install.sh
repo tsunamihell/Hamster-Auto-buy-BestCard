@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Colors
+# رنگ‌ها
 red='\033[0;31m'
 green='\033[0;32m'
 yellow='\033[0;33m'
@@ -9,26 +9,26 @@ cyan='\033[0;36m'
 blue='\033[0;34m'
 rest='\033[0m'
 
-# If running in Termux, update and upgrade
+# اگر در Termux اجرا شود، بروزرسانی و ارتقا انجام می‌دهد
 if [ -d "$HOME/.termux" ] && [ -z "$(command -v jq)" ]; then
-    echo "Running update & upgrade ..."
+    echo "در حال بروزرسانی و ارتقا ..."
     pkg update -y
     pkg upgrade -y
 fi
 
-# Function to install necessary packages
+# تابع نصب بسته‌های ضروری
 install_packages() {
     local packages=(curl jq bc)
     local missing_packages=()
 
-    # Check for missing packages
+    # بررسی بسته‌های موجود
     for pkg in "${packages[@]}"; do
         if ! command -v "$pkg" &> /dev/null; then
             missing_packages+=("$pkg")
         fi
     done
 
-    # If any package is missing, install missing packages
+    # نصب بسته‌های گمشده در صورت وجود
     if [ ${#missing_packages[@]} -gt 0 ]; then
         if [ -n "$(command -v pkg)" ]; then
             pkg install "${missing_packages[@]}" -y
@@ -42,33 +42,29 @@ install_packages() {
             sudo dnf update -y
             sudo dnf install "${missing_packages[@]}" -y
         else
-            echo -e "${yellow}Unsupported package manager. Please install required packages manually.${rest}"
+            echo -e "${yellow}مدیریت بسته پشتیبانی نمی‌شود. لطفا بسته‌های مورد نیاز را به صورت دستی نصب کنید.${rest}"
         fi
     fi
 }
 
-# Install the necessary packages
+# نصب بسته‌های ضروری
 install_packages
 
-# Clear the screen
+# پاکسازی صفحه
 clear
 
-# Prompt for Authorization
+# درخواست مجوز
 echo -e "${purple}=======${yellow}Hamster Combat Auto Buy best cards${purple}=======${rest}"
 echo ""
-echo -en "${green}Enter Authorization [${cyan}Example: ${yellow}Bearer 171852....${green}]: ${rest}"
+echo -en "${green}مجوز خود را وارد کنید [${cyan}مثال: ${yellow}Bearer 171852....${green}]: ${rest}"
 read -r Authorization
 echo -e "${purple}============================${rest}"
 
-# Prompt for minimum balance threshold
-echo -en "${green}Enter minimum balance threshold (${yellow}the script will stop purchasing if the balance is below this amount${green}):${rest} "
+# درخواست حداقل موجودی
+echo -en "${green}حداقل میزان موجودی را وارد کنید (${yellow}اسکریپت در صورتی که موجودی کمتر از این مقدار باشد خرید را متوقف خواهد کرد${green}):${rest} "
 read -r min_balance_threshold
 
-# Variables to keep track of total spent and total profit
-total_spent=0
-total_profit=0
-
-# Function to purchase upgrade
+# تابع خرید ارتقا
 purchase_upgrade() {
     upgrade_id="$1"
     timestamp=$(date +%s%3N)
@@ -82,7 +78,7 @@ purchase_upgrade() {
     echo "$response"
 }
 
-# Function to get the best upgrade item
+# تابع برای دریافت بهترین آیتم ارتقا با سود مناسب
 get_best_item() {
     curl -s -X POST -H "User-Agent: Mozilla/5.0 (Android 12; Mobile; rv:102.0) Gecko/102.0 Firefox/102.0" \
         -H "Accept: */*" \
@@ -95,13 +91,19 @@ get_best_item() {
         -H "Sec-Fetch-Mode: cors" \
         -H "Sec-Fetch-Site: same-site" \
         -H "Priority: u=4" \
-        https://api.hamsterkombat.io/clicker/upgrades-for-buy | jq -r '.upgradesForBuy | map(select(.isExpired == false and .isAvailable)) | map(select(.profitPerHourDelta != 0 and .price != 0)) | sort_by(-(.profitPerHourDelta / .price))[:1] | .[0] | {id: .id, section: .section, price: .price, profitPerHourDelta: .profitPerHourDelta, cooldownSeconds: .cooldownSeconds}'
+        https://api.hamsterkombat.io/clicker/upgrades-for-buy | jq -r '
+        .upgradesForBuy | 
+        map(select(.isExpired == false and .isAvailable)) | 
+        map(select(.profitPerHourDelta != 0 and .price != 0 and (.profitPerHourDelta / .price) >= 0.001)) | 
+        sort_by(-(.profitPerHourDelta / .price))[:1] | 
+        .[0] | 
+        {id: .id, section: .section, price: .price, profitPerHourDelta: .profitPerHourDelta, cooldownSeconds: .cooldownSeconds}'
 }
 
-# Function to wait for cooldown period with countdown
+# تابع انتظار برای دوره خنک‌شدن با شمارش معکوس
 wait_for_cooldown() {
     cooldown_seconds="$1"
-    echo -e "${yellow}Upgrade is on cooldown. Waiting for cooldown period of ${cyan}$cooldown_seconds${yellow} seconds...${rest}"
+    echo -e "${yellow}ارتقا در دوره خنک‌شدن است. منتظر دوره خنک‌شدن به مدت ${cyan}$cooldown_seconds${yellow} ثانیه...${rest}"
     while [ $cooldown_seconds -gt 0 ]; do
         echo -ne "${cyan}$cooldown_seconds\033[0K\r"
         sleep 1
@@ -109,10 +111,10 @@ wait_for_cooldown() {
     done
 }
 
-# Main script logic
+# منطق اصلی اسکریپت
 main() {
     while true; do
-        # Get the best item to buy
+        # دریافت بهترین آیتم برای خرید
         best_item=$(get_best_item)
         best_item_id=$(echo "$best_item" | jq -r '.id')
         section=$(echo "$best_item" | jq -r '.section')
@@ -121,23 +123,23 @@ main() {
         cooldown=$(echo "$best_item" | jq -r '.cooldownSeconds')
 
         echo -e "${purple}============================${rest}"
-        echo -e "${green}Best item to buy:${yellow} $best_item_id ${green}in section:${yellow} $section${rest}"
-        echo -e "${blue}Price: ${cyan}$price${rest}"
-        echo -e "${blue}Profit per Hour: ${cyan}$profit${rest}"
+        echo -e "${green}بهترین آیتم برای خرید:${yellow} $best_item_id ${green}در بخش:${yellow} $section${rest}"
+        echo -e "${blue}قیمت: ${cyan}$price${rest}"
+        echo -e "${blue}سود در ساعت: ${cyan}$profit${rest}"
         echo ""
 
-        # Get current balanceCoins
+        # دریافت موجودی فعلی
         current_balance=$(curl -s -X POST \
             -H "Authorization: $Authorization" \
             -H "Origin: https://hamsterkombat.io" \
             -H "Referer: https://hamsterkombat.io/" \
             https://api.hamsterkombat.io/clicker/sync | jq -r '.clickerUser.balanceCoins')
 
-        # Check if current balance is above the threshold after purchase
+        # بررسی اگر موجودی فعلی بعد از خرید بالاتر از حداقل موجودی باشد
         if (( $(echo "$current_balance - $price > $min_balance_threshold" | bc -l) )); then
-            # Attempt to purchase the best upgrade item
+            # تلاش برای خرید بهترین آیتم ارتقا
             if [ -n "$best_item_id" ]; then
-                echo -e "${green}Attempting to purchase upgrade '${yellow}$best_item_id${green}'...${rest}"
+                echo -e "${green}تلاش برای خرید ارتقا '${yellow}$best_item_id${green}'...${rest}"
                 echo ""
 
                 purchase_status=$(purchase_upgrade "$best_item_id")
@@ -150,13 +152,13 @@ main() {
                     total_profit=$(echo "$total_profit + $profit" | bc)
                     current_balance=$(echo "$current_balance - $price" | bc)
 
-                    echo -e "${green}Upgrade ${yellow}'$best_item_id'${green} purchased successfully at ${cyan}$purchase_time${green}.${rest}"
-                    echo -e "${green}Total spent so far: ${cyan}$total_spent${green} coins.${rest}"
-                    echo -e "${green}Total profit added: ${cyan}$total_profit${green} coins per hour.${rest}"
-                    echo -e "${green}Current balance: ${cyan}$current_balance${green} coins.${rest}"
+                    echo -e "${green}ارتقا ${yellow}'$best_item_id'${green} با موفقیت در ${cyan}$purchase_time${green} خریداری شد.${rest}"
+                    echo -e "${green}کل هزینه تا کنون: ${cyan}$total_spent${green} سکه.${rest}"
+                    echo -e "${green}کل سود افزوده شده: ${cyan}$total_profit${green} سکه در ساعت.${rest}"
+                    echo -e "${green}موجودی فعلی: ${cyan}$current_balance${green} سکه.${rest}"
                     
                     sleep_duration=$((RANDOM % 8 + 5))
-                    echo -e "${green}Waiting for ${yellow}$sleep_duration${green} seconds before next purchase...${rest}"
+                    echo -e "${green}منتظر ${yellow}$sleep_duration${green} ثانیه قبل از خرید بعدی...${rest}"
                     while [ $sleep_duration -gt 0 ]; do
                         echo -ne "${cyan}$sleep_duration\033[0K\r"
                         sleep 1
@@ -164,15 +166,15 @@ main() {
                     done
                 fi
             else
-                echo -e "${red}No valid item found to buy.${rest}"
+                echo -e "${red}آیتم معتبر برای خرید یافت نشد.${rest}"
                 break
             fi
         else
-            echo -e "${red}Current balance ${cyan}(${current_balance}) ${red}minus price of item ${cyan}(${price}) ${red}is below the threshold ${cyan}(${min_balance_threshold})${red}. Stopping purchases.${rest}"
+            echo -e "${red}موجودی فعلی ${cyan}(${current_balance}) ${red}منهای قیمت آیتم ${cyan}(${price}) ${red}کمتر از حداقل موجودی ${cyan}(${min_balance_threshold})${red} است. خرید متوقف شد.${rest}"
             break
         fi
     done
 }
 
-# Execute the main function
+# اجرای تابع اصلی
 main
